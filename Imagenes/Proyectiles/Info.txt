@@ -1,0 +1,2 @@
+32 x 32
+Golpe lanza es la imagen apuntando hacia arriba pero tiene que rotar dependiendo a que enemigo pegue como un circulo en el sentido de las agujas del reloj ya que el prota golpea CQC

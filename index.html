@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Safe the PC</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <section id="menu" class="screen">
+      <img class="logo" src="Imagenes/Title/logo.png" alt="Safe the PC">
+      <div class="menu-buttons">
+        <button id="btnDialogue">Diálogo</button>
+        <button id="btnStart">Iniciar</button>
+        <button id="btnStats">Estadísticas</button>
+      </div>
+    </section>
+
+    <section id="dialogue" class="screen hidden">
+      <div class="dialogue-card">
+        <div class="portrait-wrap"><img id="dialoguePortrait" src="" alt=""></div>
+        <div class="dialogue-content">
+          <h2 id="speaker"></h2>
+          <p id="dialogueText"></p>
+          <button id="nextDialogue">Continuar</button>
+        </div>
+      </div>
+      <button class="back" data-back="menu">Volver</button>
+    </section>
+
+    <section id="stats" class="screen hidden">
+      <div class="panel">
+        <h1>Estadísticas</h1>
+        <div id="statsContent"></div>
+        <button class="back" data-back="menu">Volver</button>
+      </div>
+    </section>
+
+    <section id="game" class="screen hidden">
+      <header class="hud">
+        <div><b>Ronda</b> <span id="round">1</span></div>
+        <div><b>Disco</b> <span id="hp">100 / 100</span></div>
+        <div><b>Bugs</b> <span id="alive">0</span></div>
+        <div><b>Muertos</b> <span id="runKills">0</span></div>
+      </header>
+      <canvas id="gameCanvas" width="960" height="640"></canvas>
+      <div class="hint">WASD / flechas: mover · Espacio: atacar · El área azul es construible</div>
+    </section>
+
+    <div id="upgradeOverlay" class="overlay hidden">
+      <div class="panel upgrade-panel">
+        <h1>Fin de ronda</h1>
+        <p>Elige una mejora para continuar.</p>
+        <div id="upgradeChoices" class="choices"></div>
+      </div>
+    </div>
+
+    <div id="gameOverOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1>El PC ha caído</h1>
+        <p id="gameOverText"></p>
+        <button id="retry">Volver al menú</button>
+      </div>
+    </div>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>

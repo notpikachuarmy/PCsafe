@@ -1,0 +1,3 @@
+16x16 pixeles 
+
+son las casillas del suelo la construible seria en las que podemos poner torretas 1 torreta por casilla tienen que ser medio chicas por ello

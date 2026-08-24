@@ -1,0 +1,1 @@
+16 x 16 pixeles las partículas deathenemi se elige 1 y suelta varias hacia arriba al morir un enemigo desaparecen en nada 
