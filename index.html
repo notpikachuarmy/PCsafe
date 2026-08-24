@@ -45,7 +45,7 @@
         <div><b>Muertos</b> <span id="runKills">0</span></div>
       </header>
       <canvas id="gameCanvas" width="960" height="640"></canvas>
-      <div class="hint">WASD / flechas: mover · Espacio: atacar · El área azul es construible</div>
+      <div class="game-controls"><button id="pauseBtn">Pausa</button></div>
     </section>
 
     <div id="upgradeOverlay" class="overlay hidden">
@@ -53,6 +53,14 @@
         <h1>Fin de ronda</h1>
         <p>Elige una mejora para continuar.</p>
         <div id="upgradeChoices" class="choices"></div>
+      </div>
+    </div>
+
+    <div id="pauseOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1>Juego pausado</h1>
+        <button id="resumeBtn">Continuar</button>
+        <button id="abandonBtn">Abandonar partida</button>
       </div>
     </div>
 

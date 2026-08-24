@@ -44,6 +44,10 @@ const dialogue = [
  ["G",ASSET.g,"Tu PC lleva demasiado tiempo sobreviviendo contra todo pronóstico. Ahora los Bugs han encontrado una forma de entrar y están atacando el disco duro."],
  ["Randes",ASSET.randes,"¿Y qué hacemos?"],
  ["G",ASSET.g,"Defenderlo. Yo vigilaré el sistema y tú tendrás que encargarte de los que consigan acercarse demasiado."],
+ ["G",ASSET.g,"Te mueves con WASD o las flechas. Randes atacará automáticamente cuando un Bug entre en el alcance de su lanza. No tienes que pulsar ningún botón para atacar."],
+ ["G",ASSET.g,"El disco duro dispara chispas por sí solo y su barra de vida está sobre él. Entre rondas tendrás tres mejoras para elegir, incluidas mejoras de la lanza."],
+ ["G",ASSET.g,"Los enemigos aparecerán lejos del área de construcción para darte tiempo de reaccionar. El minimapa te mostrará el disco, a Randes y a los enemigos."],
+ ["G",ASSET.g,"Puedes pausar con Escape o con el botón Pausa. Si abandonas, volverás al menú."],
  ["Randes",ASSET.randes,"Entonces vamos a salvar este cacharro."],
  ["G",ASSET.g,"Exacto, Randes. Bienvenido a Safe the PC."]
 ];
@@ -70,6 +74,10 @@ $("#nextDialogue").onclick=()=>{
 };
 $("#btnDialogue").onclick=startDialogue;
 $("#btnStart").onclick=startGame;
+if(!sessionStorage.getItem("safeThePCIntroSeen")){
+  sessionStorage.setItem("safeThePCIntroSeen","1");
+  startDialogue();
+}
 $("#btnStats").onclick=()=>{
  const types=Object.entries(stats.byType).map(([k,v])=>`<li>${k}: ${v}</li>`).join("");
  const losses=Object.entries(stats.lossesByEnemy).map(([k,v])=>`<li>${k}: ${v}</li>`).join("");
@@ -81,55 +89,57 @@ $("#btnStats").onclick=()=>{
  show("stats");
 };
 document.querySelectorAll("[data-back]").forEach(b=>b.onclick=()=>show(b.dataset.back));
-$("#retry").onclick=()=>show("menu");
+$("#retry").onclick=()=>{ $("#gameOverOverlay").classList.add("hidden"); show("menu"); };
+$("#pauseBtn").onclick=togglePause;
+$("#resumeBtn").onclick=togglePause;
+$("#abandonBtn").onclick=()=>{
+  if(game){game.running=false;game.paused=false}
+  $("#pauseOverlay").classList.add("hidden");
+  show("menu");
+};
 
 function makeGame(){
  return {
-  running:true, round:1, phase:"fight",
+  running:true, paused:false, round:1, phase:"fight",
   hp:100,maxHp:100,
-  player:{x:W/2-16,y:H/2+55,speed:180,damage:4,attackCd:0,attackRate:.42,attackRange:48},
+  player:{x:W/2-16,y:H/2+55,speed:180,damage:4,attackCd:0,attackRate:.42,attackRange:48,facing:1},
   disk:{x:W/2,y:H/2,range:150,damage:2,fireRate:.9,fireCd:.15,accuracy:.16,shots:1,back:false},
   enemies:[], projectiles:[], enemyProjectiles:[], particles:[],
-  spawnLeft:7, spawnTimer:0, spawnInterval:.85,
-  kills:0, constructionRadius:4,
-  upgrades:{},
-  waveTarget:7
+  spawnLeft:3, spawnTimer:1.0, spawnInterval:1.4,
+  kills:0, constructionRadius:4, upgrades:{},
+  camera:{x:0,y:0}, world:{w:3200,h:2200},
+  waveTarget:3
  };
 }
 
 function startGame(){
- game=makeGame(); show("game"); last=performance.now(); cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
+ game=makeGame();
+ game.player.x=game.world.w/2-16; game.player.y=game.world.h/2+55;
+ game.disk.x=game.world.w/2; game.disk.y=game.world.h/2;
+ show("game"); last=performance.now(); cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
 }
 
 function tileCenter(c,r){return {x:c*TILE+TILE/2,y:r*TILE+TILE/2}}
 function diskTile(){return {c:Math.floor(COLS/2),r:Math.floor(ROWS/2)}}
 
 function constructionBounds(){
- const d=diskTile(), rad=game.constructionRadius;
- return {minC:Math.max(0,d.c-rad),maxC:Math.min(COLS-1,d.c+rad),minR:Math.max(0,d.r-rad),maxR:Math.min(ROWS-1,d.r+rad)}
+ const d={c:Math.floor(game.world.w/2/TILE),r:Math.floor(game.world.h/2/TILE)}, rad=game.constructionRadius;
+ return {minC:d.c-rad,maxC:d.c+rad,minR:d.r-rad,maxR:d.r+rad}
 }
-
-/* Regla de justicia solicitada:
-   Los enemigos NO aparecen dentro ni pegados al área construible.
-   Se genera un anillo exterior con una distancia mínima de SPAWN_GAP tiles.
-*/
 const SPAWN_GAP=3;
 function randomSpawn(){
- const b=constructionBounds();
- const candidates=[];
- for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-   const outside = c < b.minC-SPAWN_GAP || c > b.maxC+SPAWN_GAP ||
-                   r < b.minR-SPAWN_GAP || r > b.maxR+SPAWN_GAP;
-   if(outside) candidates.push(tileCenter(c,r));
+ const b=constructionBounds(), candidates=[];
+ const margin=SPAWN_GAP;
+ for(let r=1;r<Math.floor(game.world.h/TILE)-1;r++) for(let c=1;c<Math.floor(game.world.w/TILE)-1;c++){
+   const outside=c < b.minC-margin || c > b.maxC+margin || r < b.minR-margin || r > b.maxR+margin;
+   if(outside && (c<3||r<3||c>Math.floor(game.world.w/TILE)-4||r>Math.floor(game.world.h/TILE)-4)) candidates.push(tileCenter(c,r));
  }
  return candidates[(Math.random()*candidates.length)|0];
 }
-
 function spawnEnemy(){
  const p=randomSpawn();
  game.enemies.push({x:p.x-12,y:p.y-12,hp:10,maxHp:10,speed:28,damage:1,attackCd:0,attackRate:1,dead:false});
 }
-
 function nearestTarget(e){
  return {x:game.disk.x,y:game.disk.y};
 }
@@ -146,13 +156,21 @@ function updatePlayer(dt){
  const p=game.player; let dx=0,dy=0;
  if(keys.has("w")||keys.has("arrowup"))dy--; if(keys.has("s")||keys.has("arrowdown"))dy++;
  if(keys.has("a")||keys.has("arrowleft"))dx--; if(keys.has("d")||keys.has("arrowright"))dx++;
- if(dx||dy){const l=Math.hypot(dx,dy);p.x+=dx/l*p.speed*dt;p.y+=dy/l*p.speed*dt}
- p.x=Math.max(16,Math.min(W-48,p.x));p.y=Math.max(16,Math.min(H-48,p.y));
+ if(dx||dy){
+   const l=Math.hypot(dx,dy); p.x+=dx/l*p.speed*dt; p.y+=dy/l*p.speed*dt;
+   if(dx<0)p.facing=-1; else if(dx>0)p.facing=1;
+ }
+ p.x=Math.max(16,Math.min(game.world.w-48,p.x));p.y=Math.max(16,Math.min(game.world.h-48,p.y));
  p.attackCd-=dt;
- if(keys.has(" ")&&p.attackCd<=0){
-   let target=null,best=p.attackRange;
-   for(const e of game.enemies){const d=Math.hypot(e.x+16-p.x-16,e.y+16-p.y-16);if(d<best){best=d;target=e}}
-   if(target){target.hp-=p.damage; p.attackCd=p.attackRate; burst(target.x+16,target.y+16); if(target.hp<=0)killEnemy(target)}
+ let target=null,best=p.attackRange;
+ for(const e of game.enemies){
+   const d=Math.hypot(e.x+16-p.x-16,e.y+16-p.y-16);
+   if(d<best){best=d;target=e}
+ }
+ if(target&&p.attackCd<=0){
+   target.hp-=p.damage; p.attackCd=p.attackRate; burst(target.x+16,target.y+16);
+   p.facing=(target.x+16 < p.x+16)?-1:1;
+   if(target.hp<=0)killEnemy(target)
  }
 }
 function updateDisk(dt){
@@ -205,7 +223,9 @@ function endRound(){
   {id:"precision",title:"Chispas más precisas",desc:"Reduce la desviación un 40%",apply:()=>game.disk.accuracy*=.6},
   {id:"damage",title:"Más daño de chispa",desc:"+2 daño de chispa",apply:()=>game.disk.damage+=2},
   {id:"double",title:"Número de chispas",desc:"+1 proyectil por disparo",apply:()=>game.disk.shots++},
-  {id:"rear",title:"Chispa trasera",desc:"Dispara también hacia atrás",apply:()=>game.disk.back=true}
+  {id:"rear",title:"Chispa trasera",desc:"Dispara también hacia atrás",apply:()=>game.disk.back=true},
+  {id:"lanceDamage",title:"Lanza: daño",desc:"+2 daño al ataque automático de Randes",apply:()=>game.player.damage+=2},
+  {id:"lanceRange",title:"Lanza: alcance",desc:"+18 de alcance de ataque automático",apply:()=>game.player.attackRange+=18}
  ];
  const choices=[...all].sort(()=>Math.random()-.5).slice(0,3);
  $("#upgradeChoices").innerHTML="";
@@ -220,8 +240,8 @@ function endRound(){
 function nextRound(){
  game.round++;
  game.phase="fight";
- game.spawnLeft=Math.floor(7+game.round*2.2);
- game.spawnInterval=Math.max(.28,.85-game.round*.025);
+ game.spawnLeft=Math.floor(3+game.round*1.25);
+ game.spawnInterval=Math.max(.55,1.4-game.round*.025);
  game.constructionRadius=Math.min(7,4+Math.floor(game.round/4));
  game.enemies=[];
  game.hp=Math.min(game.maxHp,game.hp+5);
@@ -235,18 +255,52 @@ function loseGame(killer){
 
 function draw(){
  ctx.clearRect(0,0,W,H);
+ updateCamera();
+ ctx.save(); ctx.translate(-game.camera.x,-game.camera.y);
  drawGrid(); drawBuildArea();
  const d=game.disk;
  ctx.drawImage(imgs.disk,d.x-30,d.y-30,60,60);
- for(const p of game.projectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));ctx.drawImage(imgs.spark,-16,-16,32,32);ctx.restore()}
- for(const e of game.enemies){ctx.drawImage(imgs.bug,e.x,e.y,32,32);ctx.fillStyle="#e33";ctx.fillRect(e.x,e.y-5,32,3);ctx.fillStyle="#55d";ctx.fillRect(e.x,e.y-5,32*(e.hp/e.maxHp),3)}
- ctx.drawImage(imgs.player,game.player.x,game.player.y,32,32);
+ // Barra de vida integrada sobre el disco
+ ctx.fillStyle="#1b1b1b";ctx.fillRect(d.x-34,d.y-43,68,7);
+ ctx.fillStyle="#52d273";ctx.fillRect(d.x-34,d.y-43,68*(game.hp/game.maxHp),7);
+ for(const p of game.projectiles){
+   ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));
+   ctx.drawImage(imgs.spark,-8,-8,16,16);ctx.restore();
+ }
+ for(const e of game.enemies){
+   ctx.drawImage(imgs.bug,e.x,e.y,32,32);
+   ctx.fillStyle="#e33";ctx.fillRect(e.x,e.y-5,32,3);
+   ctx.fillStyle="#55d";ctx.fillRect(e.x,e.y-5,32*(e.hp/e.maxHp),3)
+ }
+ ctx.save();
+ if(game.player.facing<0){ctx.translate(game.player.x+32,game.player.y);ctx.scale(-1,1);ctx.drawImage(imgs.player,0,0,32,32)}
+ else ctx.drawImage(imgs.player,game.player.x,game.player.y,32,32);
+ ctx.restore();
  for(const p of game.particles){ctx.fillStyle="#fff";ctx.globalAlpha=Math.max(0,p.life/.65);ctx.fillRect(p.x,p.y,3,3);ctx.globalAlpha=1}
+ ctx.restore();
+ drawMinimap();
  $("#round").textContent=game.round;$("#hp").textContent=`${game.hp} / ${game.maxHp}`;$("#alive").textContent=game.enemies.length;$("#runKills").textContent=game.kills;
 }
+function updateCamera(){
+ const targetX=game.player.x-W/2+16,targetY=game.player.y-H/2+16;
+ game.camera.x=Math.max(0,Math.min(game.world.w-W,targetX));
+ game.camera.y=Math.max(0,Math.min(game.world.h-H,targetY));
+}
+function drawMinimap(){
+ const mw=170,mh=110,mx=W-mw-12,my=H-mh-12;
+ ctx.fillStyle="#070a10";ctx.globalAlpha=.9;ctx.fillRect(mx,my,mw,mh);ctx.globalAlpha=1;
+ ctx.strokeStyle="#7a859c";ctx.strokeRect(mx,my,mw,mh);
+ const sx=mw/game.world.w,sy=mh/game.world.h;
+ ctx.fillStyle="#49d6ff";ctx.fillRect(mx+game.disk.x*sx-3,my+game.disk.y*sy-3,6,6);
+ ctx.fillStyle="#ffd34d";ctx.fillRect(mx+game.player.x*sx-3,my+game.player.y*sy-3,6,6);
+ ctx.fillStyle="#ff5268";
+ for(const e of game.enemies)ctx.fillRect(mx+(e.x+16)*sx-2,my+(e.y+16)*sy-2,4,4);
+ ctx.strokeStyle="#fff";ctx.strokeRect(mx+game.camera.x*sx,my+game.camera.y*sy,W*sx,H*sy);
+}
 function drawGrid(){
- for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
-  ctx.drawImage(imgs.neutral,c*TILE,r*TILE,TILE,TILE);
+ const maxC=Math.floor(game.world.w/TILE), maxR=Math.floor(game.world.h/TILE);
+ for(let r=0;r<maxR;r++)for(let c=0;c<maxC;c++){
+   ctx.drawImage(imgs.neutral,c*TILE,r*TILE,TILE,TILE);
  }
 }
 function drawBuildArea(){
@@ -256,7 +310,14 @@ function drawBuildArea(){
  }
  ctx.strokeStyle="#7bc7ff";ctx.lineWidth=2;ctx.strokeRect(b.minC*TILE,b.minR*TILE,(b.maxC-b.minC+1)*TILE,(b.maxR-b.minR+1)*TILE);
 }
+function togglePause(){
+ if(!game||!game.running)return;
+ game.paused=!game.paused;
+ $("#pauseOverlay").classList.toggle("hidden",!game.paused);
+}
+addEventListener("keydown",e=>{if(e.key==="Escape"&&game)togglePause()});
 function loop(t){
  const dt=Math.min(.033,(t-last)/1000);last=t;
- update(dt);draw();raf=requestAnimationFrame(loop);
+ if(!game.paused)update(dt);
+ draw();raf=requestAnimationFrame(loop);
 }

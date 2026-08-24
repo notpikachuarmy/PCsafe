@@ -29,3 +29,7 @@ button:hover{background:#252d40;border-color:#8998b8}
  .choices{grid-template-columns:1fr}
  .hud{font-size:12px}
 }
+
+.game-controls{width:960px;max-width:100%;display:flex;justify-content:flex-end;margin:7px 0}
+.game-controls button{padding:6px 16px}
+#gameCanvas{cursor:crosshair}
