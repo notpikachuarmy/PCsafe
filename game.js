@@ -104,9 +104,9 @@ function makeGame(){
   running:true, paused:false, round:1, phase:"fight",
   hp:100,maxHp:100,
   player:{x:W/2-16,y:H/2+55,speed:180,damage:4,attackCd:0,attackRate:.42,attackRange:48,facing:1},
-  disk:{x:W/2,y:H/2,range:150,damage:2,fireRate:.9,fireCd:.15,accuracy:.16,shots:1,back:false},
+  disk:{x:W/2,y:H/2,range:150,damage:2,fireRate:.9,fireCd:0,accuracy:.16,shots:1,back:false},
   enemies:[], projectiles:[], lanceProjectiles:[], enemyProjectiles:[], particles:[],
-  spawnLeft:3, spawnTimer:1.0, spawnInterval:1.4,
+  spawnLeft:3, spawnTimer:0.05, spawnInterval:1.4,
   kills:0, constructionRadius:4, upgrades:{},
   camera:{x:0,y:0}, world:{w:6400,h:4800},
   waveTarget:3
@@ -127,13 +127,24 @@ function constructionBounds(){
  const d={c:Math.floor(game.world.w/2/TILE),r:Math.floor(game.world.h/2/TILE)}, rad=game.constructionRadius;
  return {minC:d.c-rad,maxC:d.c+rad,minR:d.r-rad,maxR:d.r+rad}
 }
-const SPAWN_GAP=3;
+const SPAWN_GAP=3; // casillas exactas entre el borde de construcción y el spawn
 function randomSpawn(){
- const b=constructionBounds(), candidates=[];
- const margin=SPAWN_GAP;
- for(let r=1;r<Math.floor(game.world.h/TILE)-1;r++) for(let c=1;c<Math.floor(game.world.w/TILE)-1;c++){
-   const outside=c < b.minC-margin || c > b.maxC+margin || r < b.minR-margin || r > b.maxR+margin;
-   if(outside && (c<3||r<3||c>Math.floor(game.world.w/TILE)-4||r>Math.floor(game.world.h/TILE)-4)) candidates.push(tileCenter(c,r));
+ const b=constructionBounds();
+ const gap=SPAWN_GAP;
+ const minC=b.minC-gap, maxC=b.maxC+gap;
+ const minR=b.minR-gap, maxR=b.maxR+gap;
+ const candidates=[];
+
+ // Spawn on the four sides of the construction area, exactly in the
+ // first ring outside the safety gap. This keeps enemies close enough
+ // to be relevant while never spawning inside the buildable zone.
+ for(let c=minC;c<=maxC;c++){
+   if(minR>=1 && minR<Math.floor(game.world.h/TILE)-1) candidates.push(tileCenter(c,minR));
+   if(maxR>=1 && maxR<Math.floor(game.world.h/TILE)-1) candidates.push(tileCenter(c,maxR));
+ }
+ for(let r=minR+1;r<maxR;r++){
+   if(minC>=1 && minC<Math.floor(game.world.w/TILE)-1) candidates.push(tileCenter(minC,r));
+   if(maxC>=1 && maxC<Math.floor(game.world.w/TILE)-1) candidates.push(tileCenter(maxC,r));
  }
  return candidates[(Math.random()*candidates.length)|0];
 }
