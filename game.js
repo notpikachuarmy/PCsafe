@@ -7,8 +7,9 @@
 
 const $ = s => document.querySelector(s);
 const canvas = $("#gameCanvas"), ctx = canvas.getContext("2d");
-const W = canvas.width, H = canvas.height, TILE = 32;
-const COLS = W/TILE, ROWS = H/TILE;
+let W=canvas.width,H=canvas.height; const TILE=32;
+function resizeCanvas(){W=canvas.width=Math.max(640,innerWidth);H=canvas.height=Math.max(420,innerHeight-86)}
+resizeCanvas(); addEventListener("resize",resizeCanvas);
 
 const ASSET = {
   player:"Imagenes/Game character/Payer/player.png",
@@ -104,10 +105,10 @@ function makeGame(){
   hp:100,maxHp:100,
   player:{x:W/2-16,y:H/2+55,speed:180,damage:4,attackCd:0,attackRate:.42,attackRange:48,facing:1},
   disk:{x:W/2,y:H/2,range:150,damage:2,fireRate:.9,fireCd:.15,accuracy:.16,shots:1,back:false},
-  enemies:[], projectiles:[], enemyProjectiles:[], particles:[],
+  enemies:[], projectiles:[], lanceProjectiles:[], enemyProjectiles:[], particles:[],
   spawnLeft:3, spawnTimer:1.0, spawnInterval:1.4,
   kills:0, constructionRadius:4, upgrades:{},
-  camera:{x:0,y:0}, world:{w:3200,h:2200},
+  camera:{x:0,y:0}, world:{w:6400,h:4800},
   waveTarget:3
  };
 }
@@ -146,7 +147,7 @@ function nearestTarget(e){
 
 function update(dt){
  if(!game.running)return;
- updatePlayer(dt); updateDisk(dt); updateSpawns(dt); updateEnemies(dt); updateProjectiles(dt); updateParticles(dt);
+ updatePlayer(dt); updateDisk(dt); updateSpawns(dt); updateEnemies(dt); updateProjectiles(dt); updateLanceProjectiles(dt); updateParticles(dt);
  if(game.phase==="fight" && game.spawnLeft<=0 && game.enemies.length===0 && game.projectiles.length===0){
    endRound();
  }
@@ -168,9 +169,9 @@ function updatePlayer(dt){
    if(d<best){best=d;target=e}
  }
  if(target&&p.attackCd<=0){
-   target.hp-=p.damage; p.attackCd=p.attackRate; burst(target.x+16,target.y+16);
-   p.facing=(target.x+16 < p.x+16)?-1:1;
-   if(target.hp<=0)killEnemy(target)
+   const a=Math.atan2(target.y+16-(p.y+16),target.x+16-(p.x+16));
+   game.lanceProjectiles.push({x:p.x+16,y:p.y+16,vx:Math.cos(a)*420,vy:Math.sin(a)*420,life:.18,damage:p.damage});
+   p.attackCd=p.attackRate; p.facing=(target.x+16 < p.x+16)?-1:1;
  }
 }
 function updateDisk(dt){
@@ -202,6 +203,10 @@ function updateEnemies(dt){
   else {e.attackCd-=dt;if(e.attackCd<=0){game.hp=Math.max(0,game.hp-e.damage);e.attackCd=e.attackRate;if(game.hp<=0){loseGame(e)}}}
  }
 }
+function updateLanceProjectiles(dt){
+ for(const p of game.lanceProjectiles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;for(const e of game.enemies){if(!e.dead&&Math.hypot(p.x-(e.x+16),p.y-(e.y+16))<18){e.hp-=p.damage;p.life=0;if(e.hp<=0)killEnemy(e);break}}}
+ game.lanceProjectiles=game.lanceProjectiles.filter(p=>p.life>0);
+}
 function updateProjectiles(dt){
  for(const p of game.projectiles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
   for(const e of game.enemies){if(e.dead)continue;if(Math.hypot(p.x-(e.x+16),p.y-(e.y+16))<18){e.hp-=p.damage;p.life=0;if(e.hp<=0)killEnemy(e);break}}
@@ -213,7 +218,7 @@ function killEnemy(e){
  if(e.dead)return;e.dead=true;game.kills++;stats.totalKills++;stats.byType.Bug1=(stats.byType.Bug1||0)+1;saveStats();burst(e.x+16,e.y+16);
  game.enemies=game.enemies.filter(x=>x!==e);
 }
-function burst(x,y){for(let i=0;i<8;i++)game.particles.push({x,y,vx:(Math.random()-.5)*70,vy:(Math.random()-.5)*70,life:.35+Math.random()*.3})}
+function burst(x,y){for(let i=0;i<10;i++)game.particles.push({x,y,vx:(Math.random()-.5)*90,vy:(Math.random()-.5)*90,life:.45+Math.random()*.35,sprite:imgs.death[i%imgs.death.length],size:12+Math.random()*10})}
 
 function endRound(){
  game.phase="upgrade";
@@ -263,10 +268,8 @@ function draw(){
  // Barra de vida integrada sobre el disco
  ctx.fillStyle="#1b1b1b";ctx.fillRect(d.x-34,d.y-43,68,7);
  ctx.fillStyle="#52d273";ctx.fillRect(d.x-34,d.y-43,68*(game.hp/game.maxHp),7);
- for(const p of game.projectiles){
-   ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));
-   ctx.drawImage(imgs.spark,-8,-8,16,16);ctx.restore();
- }
+ for(const p of game.projectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));ctx.drawImage(imgs.spark,-6,-6,12,12);ctx.restore();}
+ for(const p of game.lanceProjectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));ctx.drawImage(imgs.lance,-16,-16,32,32);ctx.restore();}
  for(const e of game.enemies){
    ctx.drawImage(imgs.bug,e.x,e.y,32,32);
    ctx.fillStyle="#e33";ctx.fillRect(e.x,e.y-5,32,3);
@@ -276,18 +279,18 @@ function draw(){
  if(game.player.facing<0){ctx.translate(game.player.x+32,game.player.y);ctx.scale(-1,1);ctx.drawImage(imgs.player,0,0,32,32)}
  else ctx.drawImage(imgs.player,game.player.x,game.player.y,32,32);
  ctx.restore();
- for(const p of game.particles){ctx.fillStyle="#fff";ctx.globalAlpha=Math.max(0,p.life/.65);ctx.fillRect(p.x,p.y,3,3);ctx.globalAlpha=1}
+ for(const p of game.particles){ctx.globalAlpha=Math.max(0,p.life/.8);ctx.drawImage(p.sprite,p.x-p.size/2,p.y-p.size/2,p.size,p.size);ctx.globalAlpha=1}
  ctx.restore();
  drawMinimap();
  $("#round").textContent=game.round;$("#hp").textContent=`${game.hp} / ${game.maxHp}`;$("#alive").textContent=game.enemies.length;$("#runKills").textContent=game.kills;
 }
 function updateCamera(){
- const targetX=game.player.x-W/2+16,targetY=game.player.y-H/2+16;
+ const targetX=game.player.x-W*.43+16,targetY=game.player.y-H*.43+16;
  game.camera.x=Math.max(0,Math.min(game.world.w-W,targetX));
  game.camera.y=Math.max(0,Math.min(game.world.h-H,targetY));
 }
 function drawMinimap(){
- const mw=170,mh=110,mx=W-mw-12,my=H-mh-12;
+ const mw=190,mh=120,mx=W-mw-14,my=14;
  ctx.fillStyle="#070a10";ctx.globalAlpha=.9;ctx.fillRect(mx,my,mw,mh);ctx.globalAlpha=1;
  ctx.strokeStyle="#7a859c";ctx.strokeRect(mx,my,mw,mh);
  const sx=mw/game.world.w,sy=mh/game.world.h;
