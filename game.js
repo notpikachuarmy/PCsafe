@@ -245,10 +245,26 @@ function updateLanceProjectiles(dt){
  game.lanceProjectiles=game.lanceProjectiles.filter(p=>p.life>0);
 }
 function updateProjectiles(dt){
- for(const p of game.projectiles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
-  for(const e of game.enemies){if(e.dead)continue;if(Math.hypot(p.x-(e.x+16),p.y-(e.y+16))<18){e.hp-=p.damage;p.life=0;if(e.hp<=0)killEnemy(e);break}}
+ for(const p of game.projectiles){
+   p.x += p.vx * dt;
+   p.y += p.vy * dt;
+   p.life -= dt;
+   for(const e of game.enemies){
+     if(e.dead) continue;
+     if(Math.hypot(p.x - (e.x + 16), p.y - (e.y + 16)) < 18){
+       e.hp -= p.damage;
+       p.life = 0;
+       if(e.hp <= 0) killEnemy(e);
+       break;
+     }
+   }
  }
- game.projectiles=game.projectiles.filter(p=>p.life>0&&p.x>-40&&p.x<W+40&&p.y>-40&&p.y<H+40);
+ // Corrección: comprobar los límites del mapa (world) y no de la pantalla (canvas)
+ game.projectiles = game.projectiles.filter(p => 
+   p.life > 0 && 
+   p.x > -100 && p.x < game.world.w + 100 && 
+   p.y > -100 && p.y < game.world.h + 100
+ );
 }
 function updateParticles(dt){for(const p of game.particles)p.life-=dt;game.particles=game.particles.filter(p=>p.life>0)}
 function killEnemy(e){
