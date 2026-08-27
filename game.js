@@ -104,7 +104,7 @@ function makeGame(){
   running:true, paused:false, round:1, phase:"fight",
   hp:100,maxHp:100,
   player:{x:W/2-16,y:H/2+55,speed:180,damage:4,attackCd:0,attackRate:.42,attackRange:48,facing:1},
-  disk:{x:3200,y:2400,range:420,damage:2,fireRate:.9,fireCd:.05,accuracy:.16,shots:1,back:false},
+  disk:{x:3200,y:2400,range:420,damage:2,fireRate:.9,fireCd:.05,accuracy:.16,shots:1,back:false,flash:0},
   enemies:[], projectiles:[], lanceProjectiles:[], enemyProjectiles:[], particles:[],
   spawnLeft:3, spawnTimer:0.15, spawnInterval:1.4,
   kills:0, constructionRadius:4, upgrades:{},
@@ -186,21 +186,47 @@ function updatePlayer(dt){
  }
 }
 function updateDisk(dt){
- const d=game.disk; d.fireCd-=dt;
+ const d=game.disk;
+ d.fireCd-=dt; d.flash=Math.max(0,(d.flash||0)-dt);
+
+ // The hard drive is the base turret. It ALWAYS has at least one spark.
+ // It acquires the nearest live Bug and fires from the disk's world position.
  if(d.fireCd>0 || game.enemies.length===0) return;
- let target=null,best=Infinity;
- for(const e of game.enemies){if(e.dead)continue;const dist=Math.hypot(e.x+16-d.x,e.y+16-d.y);if(dist<best && dist<=d.range){best=dist;target=e}}
- if(!target)return;
- const base=Math.atan2(target.y+16-d.y,target.x+16-d.x);
- const count=Math.max(1,Number(d.shots)||1);
- for(let i=0;i<count;i++)fireSpark(base+(Math.random()-.5)*d.accuracy);
- if(d.back)fireSpark(base+Math.PI+(Math.random()-.5)*d.accuracy);
- d.fireCd=d.fireRate;
+
+ let target=null, best=Infinity;
+ for(const e of game.enemies){
+   if(e.dead) continue;
+   const dx=(e.x+16)-d.x, dy=(e.y+16)-d.y;
+   const dist=Math.hypot(dx,dy);
+   if(dist<best){ best=dist; target=e; }
+ }
+ if(!target) return;
+
+ const angle=Math.atan2((target.y+16)-d.y,(target.x+16)-d.x);
+ const count=Math.max(1, Math.floor(Number(d.shots)||1));
+
+ for(let i=0;i<count;i++){
+   fireSpark(angle + (Math.random()-.5)*d.accuracy);
+ }
+
+ if(d.back) fireSpark(angle+Math.PI+(Math.random()-.5)*d.accuracy);
+
+ d.fireCd=d.fireRate; d.flash=.10;
 }
+
 function fireSpark(a){
  const speed=280;
- game.projectiles.push({x:game.disk.x,y:game.disk.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,damage:Math.max(1,Number(game.disk.damage)||1),life:2.2});
+ const muzzle=28;
+ game.projectiles.push({
+   x:game.disk.x+Math.cos(a)*muzzle,
+   y:game.disk.y+Math.sin(a)*muzzle,
+   vx:Math.cos(a)*speed,
+   vy:Math.sin(a)*speed,
+   damage:Math.max(1,Number(game.disk.damage)||1),
+   life:2.2
+ });
 }
+
 function updateSpawns(dt){
  if(game.spawnLeft<=0)return;
  game.spawnTimer-=dt;
@@ -276,10 +302,16 @@ function draw(){
  drawGrid(); drawBuildArea();
  const d=game.disk;
  ctx.drawImage(imgs.disk,d.x-30,d.y-30,60,60);
+ if(d.flash>0){
+   ctx.globalAlpha=d.flash/.10;
+   ctx.fillStyle="#fff36a";
+   ctx.beginPath();ctx.arc(d.x,d.y,35,0,Math.PI*2);ctx.fill();
+   ctx.globalAlpha=1;
+ }
  // Barra de vida integrada sobre el disco
  ctx.fillStyle="#1b1b1b";ctx.fillRect(d.x-34,d.y-43,68,7);
  ctx.fillStyle="#52d273";ctx.fillRect(d.x-34,d.y-43,68*(game.hp/game.maxHp),7);
- for(const p of game.projectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));if(imgs.spark.complete && imgs.spark.naturalWidth)ctx.drawImage(imgs.spark,-6,-6,12,12);else{ctx.fillStyle="#fff36a";ctx.fillRect(-5,-2,10,4)}ctx.restore();}
+ for(const p of game.projectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));if(imgs.spark.complete && imgs.spark.naturalWidth)ctx.drawImage(imgs.spark,-7,-7,14,14);else{ctx.fillStyle="#fff36a";ctx.fillRect(-5,-2,10,4)}ctx.restore();}
  for(const p of game.lanceProjectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));ctx.drawImage(imgs.lance,-16,-16,32,32);ctx.restore();}
  for(const e of game.enemies){
    ctx.drawImage(imgs.bug,e.x,e.y,32,32);
@@ -293,7 +325,7 @@ function draw(){
  for(const p of game.particles){ctx.globalAlpha=Math.max(0,p.life/.8);ctx.drawImage(p.sprite,p.x-p.size/2,p.y-p.size/2,p.size,p.size);ctx.globalAlpha=1}
  ctx.restore();
  drawMinimap();
- $("#round").textContent=game.round;$("#hp").textContent=`${game.hp} / ${game.maxHp}`;$("#alive").textContent=game.enemies.length;$("#runKills").textContent=game.kills;
+ $("#round").textContent=game.round;$("#hp").textContent=`${game.hp} / ${game.maxHp}`;$("#alive").textContent=game.enemies.length;$("#runKills").textContent=game.kills;$("#sparkCount").textContent=game.projectiles.length;
 }
 function updateCamera(){
  const targetX=game.player.x-W*.43+16,targetY=game.player.y-H*.43+16;
