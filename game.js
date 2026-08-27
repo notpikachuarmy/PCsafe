@@ -104,9 +104,9 @@ function makeGame(){
   running:true, paused:false, round:1, phase:"fight",
   hp:100,maxHp:100,
   player:{x:W/2-16,y:H/2+55,speed:180,damage:4,attackCd:0,attackRate:.42,attackRange:48,facing:1},
-  disk:{x:W/2,y:H/2,range:150,damage:2,fireRate:.9,fireCd:0,accuracy:.16,shots:1,back:false},
+  disk:{x:3200,y:2400,range:420,damage:2,fireRate:.9,fireCd:.05,accuracy:.16,shots:1,back:false},
   enemies:[], projectiles:[], lanceProjectiles:[], enemyProjectiles:[], particles:[],
-  spawnLeft:3, spawnTimer:0.05, spawnInterval:1.4,
+  spawnLeft:3, spawnTimer:0.15, spawnInterval:1.4,
   kills:0, constructionRadius:4, upgrades:{},
   camera:{x:0,y:0}, world:{w:6400,h:4800},
   waveTarget:3
@@ -187,19 +187,19 @@ function updatePlayer(dt){
 }
 function updateDisk(dt){
  const d=game.disk; d.fireCd-=dt;
- if(d.fireCd<=0 && game.enemies.length){
-  let target=null,best=d.range;
-  for(const e of game.enemies){const dist=Math.hypot(e.x+16-d.x,e.y+16-d.y);if(dist<best){best=dist;target=e}}
-  if(target){
-   const base=Math.atan2(target.y+16-d.y,target.x+16-d.x);
-   for(let i=0;i<d.shots;i++) fireSpark(base+(Math.random()-.5)*d.accuracy);
-   if(d.back) fireSpark(base+Math.PI+(Math.random()-.5)*d.accuracy);
-   d.fireCd=d.fireRate;
-  }
- }
+ if(d.fireCd>0 || game.enemies.length===0) return;
+ let target=null,best=Infinity;
+ for(const e of game.enemies){if(e.dead)continue;const dist=Math.hypot(e.x+16-d.x,e.y+16-d.y);if(dist<best && dist<=d.range){best=dist;target=e}}
+ if(!target)return;
+ const base=Math.atan2(target.y+16-d.y,target.x+16-d.x);
+ const count=Math.max(1,Number(d.shots)||1);
+ for(let i=0;i<count;i++)fireSpark(base+(Math.random()-.5)*d.accuracy);
+ if(d.back)fireSpark(base+Math.PI+(Math.random()-.5)*d.accuracy);
+ d.fireCd=d.fireRate;
 }
 function fireSpark(a){
- game.projectiles.push({x:game.disk.x-8,y:game.disk.y-8,vx:Math.cos(a)*280,vy:Math.sin(a)*280,damage:game.disk.damage,life:1.8});
+ const speed=280;
+ game.projectiles.push({x:game.disk.x,y:game.disk.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,damage:Math.max(1,Number(game.disk.damage)||1),life:2.2});
 }
 function updateSpawns(dt){
  if(game.spawnLeft<=0)return;
@@ -279,7 +279,7 @@ function draw(){
  // Barra de vida integrada sobre el disco
  ctx.fillStyle="#1b1b1b";ctx.fillRect(d.x-34,d.y-43,68,7);
  ctx.fillStyle="#52d273";ctx.fillRect(d.x-34,d.y-43,68*(game.hp/game.maxHp),7);
- for(const p of game.projectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));ctx.drawImage(imgs.spark,-6,-6,12,12);ctx.restore();}
+ for(const p of game.projectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));if(imgs.spark.complete && imgs.spark.naturalWidth)ctx.drawImage(imgs.spark,-6,-6,12,12);else{ctx.fillStyle="#fff36a";ctx.fillRect(-5,-2,10,4)}ctx.restore();}
  for(const p of game.lanceProjectiles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));ctx.drawImage(imgs.lance,-16,-16,32,32);ctx.restore();}
  for(const e of game.enemies){
    ctx.drawImage(imgs.bug,e.x,e.y,32,32);
